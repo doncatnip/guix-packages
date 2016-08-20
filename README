@@ -1,1 +1,11 @@
-some guix packages
+guix packages:
+* python-numconv
+* guix-import-debian
+* lua 5.3.3 with -ldl (here: lua-dynlib)
+* lua-lgi 0.9.1
+* awesome 3.5.9       (here: awesome35)
+
+status:
+* lua compiles sucessfully with dl support
+* lua-lgi tests fail with segfault
+* compiling awesome35 fails silently at "Built target man"

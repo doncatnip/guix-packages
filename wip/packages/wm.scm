@@ -3,6 +3,7 @@
   #:use-module (guix packages)
   #:use-module (gnu packages)
   #:use-module (guix build-system cmake)
+  #:use-module (guix build-system gnu)
   ;#:use-module (guix build-system trivial)
   #:use-module (gnu packages base)
   #:use-module (gnu packages gtk)
@@ -11,6 +12,9 @@
   #:use-module (gnu packages xorg)
   #:use-module (gnu packages xdisorg)
   #:use-module (gnu packages documentation)
+  #:use-module (gnu packages libffi)
+  #:use-module (gnu packages readline)
+  #:use-module (gnu packages autotools)
   ;#:use-module (gnu packages m4)
   #:use-module (gnu packages docbook)
   #:use-module (gnu packages image)
@@ -27,6 +31,94 @@
   #:use-module (gnu packages lua)
   #:use-module (guix download))
 
+
+(define-public lua-dynlib
+  (package
+    (name "lua-dynlib")
+    (version "5.3.3")
+    (source (origin
+             (method url-fetch)
+             (uri (string-append "http://www.lua.org/ftp/lua-"
+                                 version ".tar.gz"))
+             (sha256
+              (base32 "18mcfbbmjyp8f2l9yy7n6dzk066nq6man0kpwly4bppphilc04si"))
+             (patches (search-patches "lua-pkgconfig.patch"
+                                      "lua52-liblua-so.patch"))))
+    (build-system gnu-build-system)
+    ;(native-inputs `(("glibc" ,glibc)
+    ;                ))
+
+    (inputs `(("readline" ,readline)
+             ))
+    (arguments
+     '(#:modules ((guix build gnu-build-system)
+                    (guix build utils)
+                    (srfi srfi-1))
+       #:test-target "test"
+       #:phases
+       (modify-phases %standard-phases
+         (delete 'configure)
+         (replace 'build
+           (lambda _ (zero? (system* "make" "LDFLAGS=-ldl" "CFLAGS=-fPIC -DLUA_USE_DLOPEN" "linux"))))
+         (replace 'install
+           (lambda* (#:key outputs #:allow-other-keys)
+             (let ((out (assoc-ref outputs "out")))
+               (zero? (system* "make" "install"
+                               (string-append "INSTALL_TOP=" out)
+                               (string-append "INSTALL_MAN=" out
+                                              "/share/man/man1")))))))))
+    (home-page "http://www.lua.org/")
+    (synopsis "Embeddable scripting language")
+    (description
+     "Lua is a powerful, fast, lightweight, embeddable scripting language.  Lua
+combines simple procedural syntax with powerful data description constructs
+based on associative arrays and extensible semantics.  Lua is dynamically typed,
+runs by interpreting bytecode for a register-based virtual machine, and has
+automatic memory management with incremental garbage collection, making it ideal
+for configuration, scripting, and rapid prototyping.")
+    (license license:x11)))
+
+
+ (define-public lua-lgi
+  (package
+    (name "lua-lgi")
+    (version "0.9.1")
+    (source (origin
+      (method url-fetch)
+      (uri (string-append
+            "https://github.com/pavouk/lgi/archive/"
+            version ".tar.gz"))
+      (sha256 (base32 "1fmgdl5y4ph3yc6ycg865s3vai1rjkyda61cgqxk6zd13hmznw0c"))))
+    (build-system gnu-build-system)
+    (arguments
+     '(#:phases (alist-delete 'configure %standard-phases)
+       #:tests? #f       ;no tests - fails with segfault
+       #:make-flags (list "CC=gcc" (string-append "PREFIX=" (assoc-ref %outputs "out")))))
+
+    (inputs
+     `(("gobject-introspection" ,gobject-introspection)
+       ("xf86-video-fbdev", xf86-video-fbdev)
+       ("glib" ,glib)
+       ("gtk+", gtk+)
+       ("lua-dynlib" ,lua-dynlib)
+       ("cairo" ,cairo)
+       ("libffi" ,libffi)
+       ("xauth" ,xauth)
+      ))
+    (native-inputs
+     `(;("xvfb" ,xvfb)
+       ("pkg-config" ,pkg-config)
+      ))
+    (home-page "https://github.com/pavouk/lgi/")
+    (synopsis "Lua bridge to GObject based libraries")
+    (description "LGI is gobject-introspection based dynamic Lua binding to GObject based
+libraries. It allows using GObject-based libraries directly from Lua.
+
+Notable examples are GTK+, GStreamer and Webkit.")
+    (license license:expat)
+))
+
+
 (define-public awesome35
   (package
     (name "awesome35")
@@ -36,16 +128,30 @@
       (uri (string-append
             "https://awesome.naquadah.org/download/awesome-"
             version ".tar.xz"))
-      (sha256 (base32 "0kynair1ykr74b39a4gcm2y24viial64337cf26nhlc7azjbby67"))))
+      (sha256 (base32 "0kynair1ykr74b39a4gcm2y24viial64337cf26nhlc7azjbby67"))
+      (modules '((guix build utils)
+                 (srfi srfi-19)))
+      (snippet
+       ;; Remove non-reproducible timestamp and use the date of the
+       ;; source file instead.
+       '(substitute* "common/version.c"
+          (("__DATE__ \" \" __TIME__")
+           (date->string
+            (time-utc->date
+             (make-time time-utc 0
+                        (stat:mtime (stat "awesome.c"))))
+            "\"~c\""))))
+      (patches (search-patches "awesome-reproducible-png.patch"))))
+
     (build-system cmake-build-system)
-    (native-inputs `(("asciidoc" ,asciidoc)                                      
-                     ("docbook-xsl" ,docbook-xsl)                                
-                     ("doxygen" ,doxygen)                                        
-                     ("gperf" ,gperf)                                            
-                     ("imagemagick" ,imagemagick)                                
-                     ("libxml2" ,libxml2)         ;for XML_CATALOG_FILES         
-                     ("pkg-config" ,pkg-config)                                  
-                     ("xmlto" ,xmlto)))                                          
+    (native-inputs `(("asciidoc" ,asciidoc)
+                     ("docbook-xsl" ,docbook-xsl)
+                     ("doxygen" ,doxygen)
+                     ("gperf" ,gperf)
+                     ("imagemagick" ,imagemagick)
+                     ("libxml2" ,libxml2)         ;for XML_CATALOG_FILES
+                     ("pkg-config" ,pkg-config)
+                     ("xmlto" ,xmlto)))
     (inputs `(("cairo" ,cairo)
               ("dbus" ,dbus)
               ("gdk-pixbuf" ,gdk-pixbuf)
@@ -55,7 +161,8 @@
               ("libxcb" ,libxcb)
               ("libxcursor" ,libxcursor)
               ("libxdg-basedir" ,libxdg-basedir)
-              ("lua" ,lua-5.1)
+              ("lua-dynlib" ,lua-dynlib)
+              ("lua-lgi",lua-lgi)
               ("pango" ,pango)
               ("startup-notification" ,startup-notification)
               ("xcb-util" ,xcb-util)
@@ -64,6 +171,26 @@
               ("xcb-util-keysyms" ,xcb-util-keysyms)
               ("xcb-util-renderutil" ,xcb-util-renderutil)
               ("xcb-util-wm" ,xcb-util-wm)))
+
+    (arguments
+     `(;; Let compression happen in our 'compress-documentation' phase so that
+       ;; '--no-name' is used, which removes timestamps from gzip output.
+       #:configure-flags '("-DCOMPRESS_MANPAGES=off")
+
+       #:phases (modify-phases %standard-phases
+                  (add-before 'build 'xmlto-skip-validation
+                    (lambda _
+                      ;; We can't download the necessary schema, so so skip
+                      ;; validation and assume they're valid.
+                      (substitute* "../build/CMakeFiles/man.dir/build.make"
+                        (("/xmlto")
+                         (string-append "/xmlto --skip-validation")))
+                      #t))
+                  (replace 'check
+                    (lambda _
+                      ;; There aren't any tests, so just make sure the binary
+                      ;; gets built and can be run successfully.
+                      (zero? (system* "../build/awesome" "-v")))))))
 
     (synopsis "highly configurable X window manager")
     (description "awesome manages windows dynamically in floating or tiled layouts. It is
