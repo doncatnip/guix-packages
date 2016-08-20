@@ -26,8 +26,7 @@
         ("python-requests"
          ,python-requests)
         ("python-chardet",python-chardet)
-        ("python-six" ,python-six)
-        ("python-configargparse",python-configargparse)))
+        ("python-six" ,python-six)))
     (native-inputs
        `(("python-setuptools" ,python-setuptools)))
     (home-page
