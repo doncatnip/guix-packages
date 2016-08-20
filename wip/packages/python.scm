@@ -9,13 +9,13 @@
 (define-public guix-import-debian
   (package
     (name "guix-import-debian")
-    (version "0.2.dev0")
+    (version "0.2.dev1")
     (source
       (origin
         (method git-fetch)
         (uri (git-reference
             (url "https://github.com/doncatnip/guix-import-debian.git")
-            (commit "e334c7920e0c0798c8609ed2833267c361af7a80")))
+            (commit "454464c93e8c42d06f33534e3129ccec5254cc39")))
         ;(method url-fetch)
         ;(uri (string-append
         ;       "https://pypi.python.org/packages/ce/53/ff3ce0f6633d6823936132fd36237bfeb0d6d062ba46616cd2ad0175e2ce/guix-import-debian-"
@@ -23,7 +23,7 @@
         ;       ".tar.bz2"))
         (sha256
           (base32
-            "07ympgbr40a8h1daijimzgk6x37whwra7rpygwfzvbnnb6fmd39r"))))
+            "035j4kwlp76g8kc4bp08ppph05c1481d6q1m2b8inbf65dzmh41k"))))
     (build-system python-build-system)
     (inputs
       `(("python-debian" ,python-debian)
