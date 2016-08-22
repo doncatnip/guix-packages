@@ -7,5 +7,5 @@ guix packages:
 
 status:
 * lua compiles sucessfully with dl support
-* lua-lgi tests fail with segfault
+* lua-lgi gtk tests disabled
 * compiling awesome35 fails silently at "Built target man"
