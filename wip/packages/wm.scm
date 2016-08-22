@@ -1,6 +1,7 @@
 (define-module (wip packages wm)
   #:use-module ((guix licenses) #:prefix license:)
   #:use-module (guix packages)
+  #:use-module (guix gexp)
   #:use-module (gnu packages)
   #:use-module (guix build-system cmake)
   #:use-module (guix build-system gnu)
@@ -15,6 +16,7 @@
   #:use-module (gnu packages libffi)
   #:use-module (gnu packages readline)
   #:use-module (gnu packages autotools)
+  #:use-module (gnu packages gnome)
   ;#:use-module (gnu packages m4)
   #:use-module (gnu packages docbook)
   #:use-module (gnu packages image)
@@ -28,13 +30,13 @@
   #:use-module (gnu packages glib)
   #:use-module (gnu packages gperf)
   #:use-module (gnu packages imagemagick)
-  #:use-module (gnu packages lua)
+  ;#:use-module (gnu packages lua)
   #:use-module (guix download))
 
 
-(define-public lua-dynlib
+(define-public luadynlib
   (package
-    (name "lua-dynlib")
+    (name "luadynlib")
     (version "5.3.3")
     (source (origin
              (method url-fetch)
@@ -83,31 +85,52 @@ for configuration, scripting, and rapid prototyping.")
   (package
     (name "lua-lgi")
     (version "0.9.1")
-    (source (origin
+    (source
+      ;(local-file "/home/boo/stuff/devel/lua-lgi/lgi-0.9.1" #:recursive? #t))
+      (origin
       (method url-fetch)
       (uri (string-append
             "https://github.com/pavouk/lgi/archive/"
             version ".tar.gz"))
-      (sha256 (base32 "1fmgdl5y4ph3yc6ycg865s3vai1rjkyda61cgqxk6zd13hmznw0c"))))
+      (sha256 (base32 "1fmgdl5y4ph3yc6ycg865s3vai1rjkyda61cgqxk6zd13hmznw0c"))
+      ; Skip GTK tests:
+      ;   gtk3 - can't get it to run with the xorg-server config below
+      ;          and some non-gtk tests will also fail
+      ;   gtk2 - lots of functions aren't implemented
+      ; We choose gtk2 as the lesser evil and simply skip the test.
+      ; as of 22/08/2016 awesome is the only package dependent on lgi but
+      ; doesn't need gtk.
+      (patches (search-patches "lgi-skiptest-gtk.patch"))))
     (build-system gnu-build-system)
     (arguments
-     '(#:phases (alist-delete 'configure %standard-phases)
-       #:tests? #f       ;no tests - fails with segfault
+     '(#:phases
+       (modify-phases %standard-phases
+         (replace 'configure
+           (lambda* (#:key inputs #:allow-other-keys)
+             ; tests don't honor LIBRARY_PATH
+             (setenv "LD_LIBRARY_PATH" (getenv "LIBRARY_PATH"))
+
+             ;; There must be a running X server and make check doesn't start one.
+             ;; Therefore we must do it.
+             (system (format #f "~a/bin/Xvfb :1 &" (assoc-ref inputs "xorg-server")))
+             (setenv "DISPLAY" ":1")
+          )))
        #:make-flags (list "CC=gcc" (string-append "PREFIX=" (assoc-ref %outputs "out")))))
 
     (inputs
      `(("gobject-introspection" ,gobject-introspection)
-       ("xf86-video-fbdev", xf86-video-fbdev)
        ("glib" ,glib)
-       ("gtk+", gtk+)
-       ("lua-dynlib" ,lua-dynlib)
+       ("pango", pango)
+       ("gtk", gtk+-2)
+       ("luadynlib" ,luadynlib) ;lua recompiled with dynamic loading support
        ("cairo" ,cairo)
        ("libffi" ,libffi)
        ("xauth" ,xauth)
+       ("xorg-server", xorg-server)
+       ("shared-mime-info", shared-mime-info)
       ))
     (native-inputs
-     `(;("xvfb" ,xvfb)
-       ("pkg-config" ,pkg-config)
+     `(("pkg-config" ,pkg-config)
       ))
     (home-page "https://github.com/pavouk/lgi/")
     (synopsis "Lua bridge to GObject based libraries")
@@ -161,7 +184,7 @@ Notable examples are GTK+, GStreamer and Webkit.")
               ("libxcb" ,libxcb)
               ("libxcursor" ,libxcursor)
               ("libxdg-basedir" ,libxdg-basedir)
-              ("lua-dynlib" ,lua-dynlib)
+              ("luadynlib" ,luadynlib)
               ("lua-lgi",lua-lgi)
               ("pango" ,pango)
               ("startup-notification" ,startup-notification)
