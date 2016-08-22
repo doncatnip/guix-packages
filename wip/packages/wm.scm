@@ -88,19 +88,13 @@ for configuration, scripting, and rapid prototyping.")
     (source
       ;(local-file "/home/boo/stuff/devel/lua-lgi/lgi-0.9.1" #:recursive? #t))
       (origin
-      (method url-fetch)
-      (uri (string-append
-            "https://github.com/pavouk/lgi/archive/"
-            version ".tar.gz"))
-      (sha256 (base32 "1fmgdl5y4ph3yc6ycg865s3vai1rjkyda61cgqxk6zd13hmznw0c"))
-      ; Skip GTK tests:
-      ;   gtk3 - can't get it to run with the xorg-server config below
-      ;          and some non-gtk tests will also fail
-      ;   gtk2 - lots of functions aren't implemented
-      ; We choose gtk2 as the lesser evil and simply skip the test.
-      ; as of 22/08/2016 awesome is the only package dependent on lgi but
-      ; doesn't need gtk.
-      (patches (search-patches "lgi-skiptest-gtk.patch"))))
+        (method url-fetch)
+        (uri (string-append
+              "https://github.com/pavouk/lgi/archive/"
+              version ".tar.gz"))
+        (sha256 (base32 "1fmgdl5y4ph3yc6ycg865s3vai1rjkyda61cgqxk6zd13hmznw0c"))
+      )
+    )
     (build-system gnu-build-system)
     (arguments
      '(#:phases
@@ -109,6 +103,16 @@ for configuration, scripting, and rapid prototyping.")
            (lambda* (#:key inputs #:allow-other-keys)
              ; tests don't honor LIBRARY_PATH
              (setenv "LD_LIBRARY_PATH" (getenv "LIBRARY_PATH"))
+
+             ; Skip GTK tests:
+             ;   gtk3 - can't get it to run with the xorg-server config below
+             ;          and some non-gtk tests will also fail
+             ;   gtk2 - lots of functions aren't implemented
+             ; We choose gtk2 as the lesser evil and simply skip the test.
+             ; as of 22/08/2016 awesome is the only package dependent on lgi but
+             ; doesn't need gtk.
+             (substitute* "./tests/test.lua"
+                        (("'gtk.lua',") "-- 'gtk.lua',"))
 
              ;; There must be a running X server and make check doesn't start one.
              ;; Therefore we must do it.
@@ -127,7 +131,6 @@ for configuration, scripting, and rapid prototyping.")
        ("libffi" ,libffi)
        ("xauth" ,xauth)
        ("xorg-server", xorg-server)
-       ("shared-mime-info", shared-mime-info)
       ))
     (native-inputs
      `(("pkg-config" ,pkg-config)
