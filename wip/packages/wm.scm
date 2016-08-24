@@ -30,28 +30,13 @@
   #:use-module (gnu packages glib)
   #:use-module (gnu packages gperf)
   #:use-module (gnu packages imagemagick)
-  ;#:use-module (gnu packages lua)
+  #:use-module (gnu packages lua)
   #:use-module (guix download))
 
 
-(define-public luadynlib
-  (package
-    (name "luadynlib")
-    (version "5.3.3")
-    (source (origin
-             (method url-fetch)
-             (uri (string-append "http://www.lua.org/ftp/lua-"
-                                 version ".tar.gz"))
-             (sha256
-              (base32 "18mcfbbmjyp8f2l9yy7n6dzk066nq6man0kpwly4bppphilc04si"))
-             (patches (search-patches "lua-pkgconfig.patch"
-                                      "lua52-liblua-so.patch"))))
-    (build-system gnu-build-system)
-    ;(native-inputs `(("glibc" ,glibc)
-    ;                ))
-
-    (inputs `(("readline" ,readline)
-             ))
+(define-public luadl-5.2
+  (package (inherit lua)
+    (name "luadl")
     (arguments
      '(#:modules ((guix build gnu-build-system)
                     (guix build utils)
@@ -61,7 +46,7 @@
        (modify-phases %standard-phases
          (delete 'configure)
          (replace 'build
-           (lambda _ (zero? (system* "make" "LDFLAGS=-ldl" "CFLAGS=-fPIC -DLUA_USE_DLOPEN" "linux"))))
+           (lambda _ (zero? (system* "make" "LDFLAGS=-ldl" "CFLAGS=-fPIC -DLUA_USE_DLOPEN -DLUA_USE_POSIX" "linux"))))
          (replace 'install
            (lambda* (#:key outputs #:allow-other-keys)
              (let ((out (assoc-ref outputs "out")))
@@ -69,19 +54,14 @@
                                (string-append "INSTALL_TOP=" out)
                                (string-append "INSTALL_MAN=" out
                                               "/share/man/man1")))))))))
-    (home-page "http://www.lua.org/")
-    (synopsis "Embeddable scripting language")
     (description
-     "Lua is a powerful, fast, lightweight, embeddable scripting language.  Lua
-combines simple procedural syntax with powerful data description constructs
-based on associative arrays and extensible semantics.  Lua is dynamically typed,
-runs by interpreting bytecode for a register-based virtual machine, and has
-automatic memory management with incremental garbage collection, making it ideal
-for configuration, scripting, and rapid prototyping.")
+     "Lua is a powerful, fast, lightweight, embeddable scripting language.
+      For mor information see lua package.
+      This version is built with dynamic loading support.")
     (license license:x11)))
 
 
- (define-public lua-lgi
+(define-public lua-lgi
   (package
     (name "lua-lgi")
     (version "0.9.1")
@@ -113,20 +93,29 @@ for configuration, scripting, and rapid prototyping.")
              ; doesn't need gtk.
              (substitute* "./tests/test.lua"
                         (("'gtk.lua',") "-- 'gtk.lua',"))
+             ; lua version and therefore install directories are hardcoded
+             ; for some reason
+             (substitute* "./lgi/Makefile"
+                        (("LUA_VERSION=5.1") "LUA_VERSION=5.2"))
 
              ;; There must be a running X server and make check doesn't start one.
              ;; Therefore we must do it.
              (system (format #f "~a/bin/Xvfb :1 &" (assoc-ref inputs "xorg-server")))
              (setenv "DISPLAY" ":1")
-          )))
-       #:make-flags (list "CC=gcc" (string-append "PREFIX=" (assoc-ref %outputs "out")))))
+           ))
+       )
+       #:make-flags
+         (let ((out (assoc-ref %outputs "out")))
+           (list "CC=gcc"
+             (string-append "PREFIX=" (assoc-ref %outputs "out"))
+           ))))
 
     (inputs
      `(("gobject-introspection" ,gobject-introspection)
        ("glib" ,glib)
        ("pango", pango)
        ("gtk", gtk+-2)
-       ("luadynlib" ,luadynlib) ;lua recompiled with dynamic loading support
+       ("luadl" ,luadl-5.2) ;lua recompiled with dynamic loading support
        ("cairo" ,cairo)
        ("libffi" ,libffi)
        ("xauth" ,xauth)
@@ -179,6 +168,7 @@ Notable examples are GTK+, GStreamer and Webkit.")
                      ("pkg-config" ,pkg-config)
                      ("xmlto" ,xmlto)))
     (inputs `(("cairo" ,cairo)
+              ("gobject-introspection" ,gobject-introspection)
               ("dbus" ,dbus)
               ("gdk-pixbuf" ,gdk-pixbuf)
               ("glib" ,glib)
@@ -187,7 +177,7 @@ Notable examples are GTK+, GStreamer and Webkit.")
               ("libxcb" ,libxcb)
               ("libxcursor" ,libxcursor)
               ("libxdg-basedir" ,libxdg-basedir)
-              ("luadynlib" ,luadynlib)
+              ("luadl" ,luadl-5.2)
               ("lua-lgi",lua-lgi)
               ("pango" ,pango)
               ("startup-notification" ,startup-notification)
@@ -212,6 +202,16 @@ Notable examples are GTK+, GStreamer and Webkit.")
                         (("/xmlto")
                          (string-append "/xmlto --skip-validation")))
                       #t))
+                  (add-before 'configure 'set-lua-paths
+                    (lambda* (#:key inputs #:allow-other-keys)
+                      (setenv "LD_LIBRARY_PATH" (getenv "LIBRARY_PATH"))
+                      (let ((lua-lgi (assoc-ref inputs "lua-lgi")))
+                        (setenv "LUA_PATH"
+                          (string-append lua-lgi
+                                        "/share/lua/5.2/?.lua"))
+                        (setenv "LUA_CPATH"
+                          (string-append lua-lgi
+                                        "/lib/lua/5.2/?.so")))))
                   (replace 'check
                     (lambda _
                       ;; There aren't any tests, so just make sure the binary
