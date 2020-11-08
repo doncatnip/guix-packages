@@ -5,6 +5,7 @@
   #:use-module (guix build-system cmake)
   #:use-module ((guix licenses) #:prefix license:)
 
+  #:use-module (don packages python-xyz))
   #:use-module (gnu packages time)
   #:use-module (gnu packages protobuf)
   #:use-module (gnu packages python-web)
